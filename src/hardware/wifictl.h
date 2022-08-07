@@ -22,13 +22,14 @@
 #ifndef _WIFICTL_H
     #define _WIFICTL_H
 
-    #include "TTGO.h"
     #include "callback.h"
-    #include "ftpserver/ftpserver.h"
+    #ifdef NATIVE_64BIT
+        #include "utils/io.h"
+    #else
+        #include <Arduino.h>
+    #endif
 
     #define WIFICTL_DELAY               10
-    #define NETWORKLIST_ENTRYS          20
-    #define WIFICTL_JSON_CONFIG_FILE    "/wificfg.json"
 
     #define ESP_WPS_MODE                WPS_TYPE_PBC
     #define ESP_MANUFACTURER            "ESPRESSIF"
@@ -37,46 +38,27 @@
     #define ESP_DEVICE_NAME             "ESP STATION"
 
     /**
-     * @brief network list structure
+     * @brief wifi event enum
      */
-    typedef struct {
-        char ssid[64]="";
-        char password[64]="";
-    } networklist;
-
-    /**
-     * @brief wifictl config structure
-     */
-    typedef struct {
-        bool autoon = true;                     /** @brief enable on auto on/off an wakeup and standby */
-        #ifdef ENABLE_WEBSERVER
-        bool webserver = false;                 /** @brief enable on webserver */
-        #endif
-        #ifdef ENABLE_FTPSERVER
-        bool ftpserver = false;                 /** @brief enable on ftpserver */
-        char ftpuser[32] = FTPSERVER_USER;      /** @brief ftpserver username*/
-        char ftppass[32] = FTPSERVER_PASSWORD;  /** @brief ftpserver password*/
-        #endif
-        bool enable_on_standby = false; /** @brief enable on standby */
-    } wifictl_config_t;
-
     enum wifictl_event_t {
-        WIFICTL_CONNECT                = _BV(0),
-        WIFICTL_CONNECT_IP             = _BV(1),
-        WIFICTL_DISCONNECT             = _BV(2),
-        WIFICTL_ON                     = _BV(3),
-        WIFICTL_OFF                    = _BV(4),
-        WIFICTL_ACTIVE                 = _BV(5),
-        WIFICTL_ON_REQUEST             = _BV(6),
-        WIFICTL_OFF_REQUEST            = _BV(7),
-        WIFICTL_WPS_REQUEST            = _BV(8),
-        WIFICTL_WPS_SUCCESS            = _BV(9),
-        WIFICTL_WPS_FAILED             = _BV(10),
-        WIFICTL_SCAN                   = _BV(11),
-        WIFICTL_FIRST_RUN              = _BV(12),
-        WIFICTL_AUTOON                 = _BV(13)
+        WIFICTL_CONNECT                = _BV(0),            /** @brief wifi connect event */
+        WIFICTL_CONNECT_IP             = _BV(1),            /** @brief wifi connect and got ip event */
+        WIFICTL_DISCONNECT             = _BV(2),            /** @brief wifi disconnect event */
+        WIFICTL_ON                     = _BV(3),            /** @brief wifi switch on connect event */
+        WIFICTL_OFF                    = _BV(4),            /** @brief wifi dwitch off connect event */
+        WIFICTL_ACTIVE                 = _BV(5),            /** @brief wifi active event */
+        WIFICTL_ON_REQUEST             = _BV(6),            /** @brief wifi switch on reguest event */
+        WIFICTL_OFF_REQUEST            = _BV(7),            /** @brief wifi switch off request event */
+        WIFICTL_WPS_REQUEST            = _BV(8),            /** @brief wifi wps auth rewuest event */
+        WIFICTL_WPS_SUCCESS            = _BV(9),            /** @brief wifi wps auth request success event */
+        WIFICTL_WPS_FAILED             = _BV(10),           /** @brief wifi wps auth request failed event */
+        WIFICTL_MSG                    = _BV(12),           /** @brief wifi info msg event */
+        WIFICTL_SCAN                   = _BV(13),           /** @brief wifi scan event */
+        WIFICTL_SCAN_DONE              = _BV(14),           /** @brief wifi scan done event */
+        WIFICTL_SCAN_ENTRY             = _BV(15),           /** @brief wifi scan entry event */
+        WIFICTL_FIRST_RUN              = _BV(16),           /** @brief wifi first run preventer */
+        WIFICTL_AUTOON                 = _BV(17)            /** @brief wifi autoon event */
     };
-
     /**
      * @brief setup wifi controller routine
      */
@@ -158,7 +140,6 @@
      * @brief   start an wifi wps peering
      */
     void wifictl_start_wps( void );
-    #ifdef ENABLE_WEBSERVER
     /**
      * @brief   get the current webserver configuration
      * 
@@ -171,8 +152,6 @@
      * @param   webserver   true means webserver enable, false means webserver disable
      */
     void wifictl_set_webserver( bool webserver );
-    #endif
-    #ifdef ENABLE_FTPSERVER
     /**
      * @brief   get the current webserver configuration
      * 
@@ -185,7 +164,6 @@
      * @param   ftpserver   true means ftpserver enable, false means ftpserver disable
      */
     void wifictl_set_ftpserver( bool ftpserver );
-    #endif
     /**
      * @brief   set wifi enable on standby
      * 
@@ -198,6 +176,5 @@
      * @return  true means enabled, false means disabled
      */
     bool wifictl_get_enable_on_standby( void );
-
 
 #endif // _WIFICTL_H

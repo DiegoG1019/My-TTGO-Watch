@@ -1,9 +1,9 @@
 #include "config.h"
-#include <TTGO.h>
-#include "quickglui/quickglui.h"
 
+#include "quickglui/quickglui.h"
 #include "fx_rates.h"
 #include "gui/mainbar/mainbar.h"
+#include "gui/widget_styles.h"
 #include "hardware/wifictl.h"
 
 // App icon must have an size of 64x64 pixel with an alpha channel
@@ -24,6 +24,9 @@ static Style big;
  * setup routine for application
  */
 void fxrates_app_setup() {
+    #if defined( ONLY_ESSENTIAL )
+        return;
+    #endif
     // Create and register new application
     //   params: name, icon, auto add "refresh" button (this app will use synchronize function of the SynchronizedApplication class).
     //   Also, you can configure count of the required pages in the next two params (to have more app screens).
@@ -70,7 +73,7 @@ bool fxrates_wifictl_event_cb(EventBits_t event, void *arg) {
 
 void build_main_page()
 {
-    big = Style::Create(mainbar_get_style(), true);
+    big = Style::Create(ws_get_mainbar_style(), true);
     big.textFont(&Ubuntu_48px)
       .textOpacity(LV_OPA_80);
 

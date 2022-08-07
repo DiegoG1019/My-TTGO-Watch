@@ -23,15 +23,28 @@
 
 #include "powermeter_app.h"
 #include "powermeter_setup.h"
+#include "config/powermeter_config.h"
 
 #include "gui/mainbar/mainbar.h"
 #include "gui/mainbar/main_tile/main_tile.h"
 #include "gui/statusbar.h"
 #include "gui/keyboard.h"
+#include "gui/widget_factory.h"
+#include "gui/widget_styles.h"
+
+#ifdef NATIVE_64BIT
+    #include "utils/logging.h"
+    #include "utils/millis.h"
+    #include <string>
+
+    using namespace std;
+    #define String string
+#else
+    #include <Arduino.h>
+#endif
 
 lv_obj_t *powermeter_setup_tile = NULL;
 lv_obj_t *powermeter_setup_tile_2 = NULL;
-lv_style_t powermeter_setup_style;
 uint32_t powermeter_setup_tile_num;
 
 lv_obj_t *powermeter_server_textfield = NULL;
@@ -42,51 +55,40 @@ lv_obj_t *powermeter_port_textfield = NULL;
 lv_obj_t *powermeter_autoconnect_onoff = NULL;
 lv_obj_t *powermeter_widget_onoff = NULL;
 
-LV_IMG_DECLARE(exit_32px);
-
 static void powermeter_textarea_event_cb( lv_obj_t * obj, lv_event_t event );
 static void powermeter_num_textarea_event_cb( lv_obj_t * obj, lv_event_t event );
-static void exit_powermeter_widget_setup_event_cb( lv_obj_t * obj, lv_event_t event );
 static void powermeter_autoconnect_onoff_event_handler( lv_obj_t * obj, lv_event_t event );
 static void powermeter_widget_onoff_event_handler( lv_obj_t *obj, lv_event_t event );
+static void powermeter_setup_page_2_event_cb( lv_obj_t *obj, lv_event_t event );
+static void powermeter_setup_hibernate_callback ( void );
 
 void powermeter_setup_tile_setup( uint32_t tile_num ) {
 
     powermeter_config_t *powermeter_config = powermeter_get_config();
 
+    mainbar_add_tile_hibernate_cb( tile_num, powermeter_setup_hibernate_callback );
+
     powermeter_setup_tile_num = tile_num;
     powermeter_setup_tile = mainbar_get_tile_obj( powermeter_setup_tile_num );
     powermeter_setup_tile_2 = mainbar_get_tile_obj( powermeter_setup_tile_num + 1 );
 
-    lv_style_copy( &powermeter_setup_style, mainbar_get_style() );
-    lv_style_set_bg_color( &powermeter_setup_style, LV_OBJ_PART_MAIN, LV_COLOR_GRAY);
-    lv_style_set_bg_opa( &powermeter_setup_style, LV_OBJ_PART_MAIN, LV_OPA_100);
-    lv_style_set_border_width( &powermeter_setup_style, LV_OBJ_PART_MAIN, 0);
-    lv_obj_add_style( powermeter_setup_tile, LV_OBJ_PART_MAIN, &powermeter_setup_style );
-    lv_obj_add_style( powermeter_setup_tile_2, LV_OBJ_PART_MAIN, &powermeter_setup_style );
+    lv_obj_t *header = wf_add_settings_header( powermeter_setup_tile, "powermeter setup" );
+    lv_obj_align( header, powermeter_setup_tile, LV_ALIGN_IN_TOP_LEFT, THEME_ICON_PADDING, THEME_ICON_PADDING );
 
-    lv_obj_t *exit_btn = lv_imgbtn_create( powermeter_setup_tile, NULL);
-    lv_imgbtn_set_src( exit_btn, LV_BTN_STATE_RELEASED, &exit_32px);
-    lv_imgbtn_set_src( exit_btn, LV_BTN_STATE_PRESSED, &exit_32px);
-    lv_imgbtn_set_src( exit_btn, LV_BTN_STATE_CHECKED_RELEASED, &exit_32px);
-    lv_imgbtn_set_src( exit_btn, LV_BTN_STATE_CHECKED_PRESSED, &exit_32px);
-    lv_obj_add_style( exit_btn, LV_IMGBTN_PART_MAIN, &powermeter_setup_style );
-    lv_obj_align( exit_btn, powermeter_setup_tile, LV_ALIGN_IN_TOP_LEFT, 10, 10 );
-    lv_obj_set_event_cb( exit_btn, exit_powermeter_widget_setup_event_cb );
-    
-    lv_obj_t *exit_label = lv_label_create( powermeter_setup_tile, NULL);
-    lv_obj_add_style( exit_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
-    lv_label_set_text( exit_label, "powermeter setup");
-    lv_obj_align( exit_label, exit_btn, LV_ALIGN_OUT_RIGHT_MID, 5, 0 );
+    lv_obj_t *header_2 = wf_add_settings_header( powermeter_setup_tile_2, "powermeter setup" );
+    lv_obj_align( header_2, powermeter_setup_tile_2, LV_ALIGN_IN_TOP_LEFT, THEME_ICON_PADDING, THEME_ICON_PADDING );
+
+    lv_obj_t *setup_page_2 = wf_add_down_button( powermeter_setup_tile, powermeter_setup_page_2_event_cb );
+    lv_obj_align( setup_page_2, powermeter_setup_tile, LV_ALIGN_IN_TOP_RIGHT, -THEME_ICON_PADDING, THEME_ICON_PADDING );
 
     lv_obj_t *powermeter_server_cont = lv_obj_create( powermeter_setup_tile, NULL );
     lv_obj_set_size( powermeter_server_cont, lv_disp_get_hor_res( NULL ) , 37);
-    lv_obj_add_style( powermeter_server_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
-    lv_obj_align( powermeter_server_cont, powermeter_setup_tile, LV_ALIGN_IN_TOP_MID, 0, 47 );
+    lv_obj_add_style( powermeter_server_cont, LV_OBJ_PART_MAIN, SETUP_STYLE  );
+    lv_obj_align( powermeter_server_cont, header, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0 );
     lv_obj_t *powermeter_server_label = lv_label_create( powermeter_server_cont, NULL);
-    lv_obj_add_style( powermeter_server_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_server_label, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_label_set_text( powermeter_server_label, "server");
-    lv_obj_align( powermeter_server_label, powermeter_server_cont, LV_ALIGN_IN_LEFT_MID, 5, 0 );
+    lv_obj_align( powermeter_server_label, powermeter_server_cont, LV_ALIGN_IN_LEFT_MID, 0, 0 );
     powermeter_server_textfield = lv_textarea_create( powermeter_server_cont, NULL);
     lv_textarea_set_text( powermeter_server_textfield, powermeter_config->server );
     lv_textarea_set_pwd_mode( powermeter_server_textfield, false);
@@ -98,12 +100,12 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
 
     lv_obj_t *powermeter_port_cont = lv_obj_create( powermeter_setup_tile, NULL );
     lv_obj_set_size( powermeter_port_cont, lv_disp_get_hor_res( NULL ) , 37);
-    lv_obj_add_style( powermeter_port_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_port_cont, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_obj_align( powermeter_port_cont, powermeter_server_cont, LV_ALIGN_OUT_BOTTOM_MID, 0,  0 );
     lv_obj_t *powermeter_port_label = lv_label_create( powermeter_port_cont, NULL);
-    lv_obj_add_style( powermeter_port_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_port_label, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_label_set_text( powermeter_port_label, "port");
-    lv_obj_align( powermeter_port_label, powermeter_port_cont, LV_ALIGN_IN_LEFT_MID, 5, 0 );
+    lv_obj_align( powermeter_port_label, powermeter_port_cont, LV_ALIGN_IN_LEFT_MID, 0, 0 );
     powermeter_port_textfield = lv_textarea_create( powermeter_port_cont, NULL);
     char buf[10];
     sprintf(buf, "%d", powermeter_config->port );
@@ -117,12 +119,12 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
 
     lv_obj_t *powermeter_user_cont = lv_obj_create( powermeter_setup_tile, NULL );
     lv_obj_set_size( powermeter_user_cont, lv_disp_get_hor_res( NULL ) , 37);
-    lv_obj_add_style( powermeter_user_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_user_cont, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_obj_align( powermeter_user_cont, powermeter_port_cont, LV_ALIGN_OUT_BOTTOM_MID, 0, 0 );
     lv_obj_t *powermeter_user_label = lv_label_create( powermeter_user_cont, NULL);
-    lv_obj_add_style( powermeter_user_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_user_label, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_label_set_text( powermeter_user_label, "user");
-    lv_obj_align( powermeter_user_label, powermeter_user_cont, LV_ALIGN_IN_LEFT_MID, 5, 0 );
+    lv_obj_align( powermeter_user_label, powermeter_user_cont, LV_ALIGN_IN_LEFT_MID, 0, 0 );
     powermeter_user_textfield = lv_textarea_create( powermeter_user_cont, NULL);
     lv_textarea_set_text( powermeter_user_textfield, powermeter_config->user );
     lv_textarea_set_pwd_mode( powermeter_user_textfield, false);
@@ -134,12 +136,12 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
 
     lv_obj_t *powermeter_password_cont = lv_obj_create( powermeter_setup_tile, NULL );
     lv_obj_set_size( powermeter_password_cont, lv_disp_get_hor_res( NULL ) , 37);
-    lv_obj_add_style( powermeter_password_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_password_cont, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_obj_align( powermeter_password_cont, powermeter_user_cont, LV_ALIGN_OUT_BOTTOM_MID, 0, 0 );
     lv_obj_t *powermeter_password_label = lv_label_create( powermeter_password_cont, NULL);
-    lv_obj_add_style( powermeter_password_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_password_label, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_label_set_text( powermeter_password_label, "pass");
-    lv_obj_align( powermeter_password_label, powermeter_password_cont, LV_ALIGN_IN_LEFT_MID, 5, 0 );
+    lv_obj_align( powermeter_password_label, powermeter_password_cont, LV_ALIGN_IN_LEFT_MID, 0, 0 );
     powermeter_password_textfield = lv_textarea_create( powermeter_password_cont, NULL);
     lv_textarea_set_text( powermeter_password_textfield, powermeter_config->password );
     lv_textarea_set_pwd_mode( powermeter_password_textfield, false);
@@ -151,12 +153,12 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
 
     lv_obj_t *powermeter_topic_cont = lv_obj_create( powermeter_setup_tile, NULL );
     lv_obj_set_size( powermeter_topic_cont, lv_disp_get_hor_res( NULL ) , 37);
-    lv_obj_add_style( powermeter_topic_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_topic_cont, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_obj_align( powermeter_topic_cont, powermeter_password_cont, LV_ALIGN_OUT_BOTTOM_MID, 0, 0 );
     lv_obj_t *powermeter_topic_label = lv_label_create( powermeter_topic_cont, NULL);
-    lv_obj_add_style( powermeter_topic_label, LV_OBJ_PART_MAIN, &powermeter_setup_style  );
+    lv_obj_add_style( powermeter_topic_label, LV_OBJ_PART_MAIN, SETUP_STYLE  );
     lv_label_set_text( powermeter_topic_label, "topic");
-    lv_obj_align( powermeter_topic_label, powermeter_topic_cont, LV_ALIGN_IN_LEFT_MID, 5, 0 );
+    lv_obj_align( powermeter_topic_label, powermeter_topic_cont, LV_ALIGN_IN_LEFT_MID, 0, 0 );
     powermeter_topic_textfield = lv_textarea_create( powermeter_topic_cont, NULL);
     lv_textarea_set_text( powermeter_topic_textfield, powermeter_config->topic );
     lv_textarea_set_pwd_mode( powermeter_topic_textfield, false);
@@ -166,39 +168,27 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
     lv_obj_align( powermeter_topic_textfield, powermeter_topic_cont, LV_ALIGN_IN_RIGHT_MID, -5, 0 );
     lv_obj_set_event_cb( powermeter_topic_textfield, powermeter_textarea_event_cb );
 
-    lv_tileview_add_element( powermeter_setup_tile, powermeter_server_cont );
-    lv_tileview_add_element( powermeter_setup_tile, powermeter_port_cont );
-    lv_tileview_add_element( powermeter_setup_tile, powermeter_user_cont );
-    lv_tileview_add_element( powermeter_setup_tile, powermeter_password_cont );
-    lv_tileview_add_element( powermeter_setup_tile, powermeter_topic_cont );
-
     lv_obj_t *powermeter_autoconnect_onoff_cont = lv_obj_create( powermeter_setup_tile_2, NULL);
     lv_obj_set_size( powermeter_autoconnect_onoff_cont, lv_disp_get_hor_res( NULL ), 32);
-    lv_obj_add_style( powermeter_autoconnect_onoff_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style );
-    lv_obj_align( powermeter_autoconnect_onoff_cont, powermeter_setup_tile_2, LV_ALIGN_IN_TOP_MID, 0, 49 );
-    powermeter_autoconnect_onoff = lv_switch_create( powermeter_autoconnect_onoff_cont, NULL);
-    lv_obj_add_protect( powermeter_autoconnect_onoff, LV_PROTECT_CLICK_FOCUS);
-    lv_obj_add_style( powermeter_autoconnect_onoff, LV_SWITCH_PART_INDIC, mainbar_get_switch_style() );
-    lv_switch_off( powermeter_autoconnect_onoff, LV_ANIM_ON);
+    lv_obj_add_style( powermeter_autoconnect_onoff_cont, LV_OBJ_PART_MAIN, SETUP_STYLE );
+    lv_obj_align( powermeter_autoconnect_onoff_cont, header_2, LV_ALIGN_OUT_BOTTOM_LEFT, -THEME_ICON_PADDING, THEME_ICON_PADDING );
+    powermeter_autoconnect_onoff = wf_add_switch( powermeter_autoconnect_onoff_cont, false);
     lv_obj_align( powermeter_autoconnect_onoff, powermeter_autoconnect_onoff_cont, LV_ALIGN_IN_RIGHT_MID, -5, 0);
     lv_obj_set_event_cb( powermeter_autoconnect_onoff, powermeter_autoconnect_onoff_event_handler );
     lv_obj_t *powermeter_autoconnect_label = lv_label_create(powermeter_autoconnect_onoff_cont, NULL);
-    lv_obj_add_style( powermeter_autoconnect_label, LV_OBJ_PART_MAIN, &powermeter_setup_style );
+    lv_obj_add_style( powermeter_autoconnect_label, LV_OBJ_PART_MAIN, SETUP_STYLE );
     lv_label_set_text( powermeter_autoconnect_label, "autoconnect");
     lv_obj_align( powermeter_autoconnect_label, powermeter_autoconnect_onoff_cont, LV_ALIGN_IN_LEFT_MID, 5, 0);
 
     lv_obj_t *powermeter_widget_onoff_cont = lv_obj_create( powermeter_setup_tile_2, NULL);
     lv_obj_set_size( powermeter_widget_onoff_cont, lv_disp_get_hor_res( NULL ), 32);
-    lv_obj_add_style( powermeter_widget_onoff_cont, LV_OBJ_PART_MAIN, &powermeter_setup_style );
-    lv_obj_align( powermeter_widget_onoff_cont, powermeter_autoconnect_onoff_cont, LV_ALIGN_OUT_BOTTOM_MID, 0, 0 );
-    powermeter_widget_onoff = lv_switch_create( powermeter_widget_onoff_cont, NULL);
-    lv_obj_add_protect( powermeter_widget_onoff, LV_PROTECT_CLICK_FOCUS);
-    lv_obj_add_style( powermeter_widget_onoff, LV_SWITCH_PART_INDIC, mainbar_get_switch_style() );
-    lv_switch_off( powermeter_widget_onoff, LV_ANIM_ON);
+    lv_obj_add_style( powermeter_widget_onoff_cont, LV_OBJ_PART_MAIN, SETUP_STYLE );
+    lv_obj_align( powermeter_widget_onoff_cont, powermeter_autoconnect_onoff_cont, LV_ALIGN_OUT_BOTTOM_MID, 0, THEME_ICON_PADDING );
+    powermeter_widget_onoff = wf_add_switch( powermeter_widget_onoff_cont, false);
     lv_obj_align( powermeter_widget_onoff, powermeter_widget_onoff_cont, LV_ALIGN_IN_RIGHT_MID, -5, 0);
     lv_obj_set_event_cb( powermeter_widget_onoff, powermeter_widget_onoff_event_handler );
     lv_obj_t *powermeter_widget_onoff_label = lv_label_create( powermeter_widget_onoff_cont, NULL);
-    lv_obj_add_style( powermeter_widget_onoff_label, LV_OBJ_PART_MAIN, &powermeter_setup_style );
+    lv_obj_add_style( powermeter_widget_onoff_label, LV_OBJ_PART_MAIN, SETUP_STYLE );
     lv_label_set_text( powermeter_widget_onoff_label, "mainbar widget");
     lv_obj_align( powermeter_widget_onoff_label, powermeter_widget_onoff_cont, LV_ALIGN_IN_LEFT_MID, 5, 0);
 
@@ -211,21 +201,23 @@ void powermeter_setup_tile_setup( uint32_t tile_num ) {
         lv_switch_on( powermeter_widget_onoff, LV_ANIM_OFF );
     else
         lv_switch_off( powermeter_widget_onoff, LV_ANIM_OFF );
+
+    lv_tileview_add_element( powermeter_setup_tile, powermeter_server_cont );
+    lv_tileview_add_element( powermeter_setup_tile, powermeter_port_cont );
+    lv_tileview_add_element( powermeter_setup_tile, powermeter_user_cont );
+    lv_tileview_add_element( powermeter_setup_tile, powermeter_password_cont );
+    lv_tileview_add_element( powermeter_setup_tile, powermeter_topic_cont );
 }
 
-static void exit_powermeter_widget_setup_event_cb( lv_obj_t * obj, lv_event_t event ) {
-    switch( event ) {
-        case( LV_EVENT_CLICKED ):           keyboard_hide();
-                                            powermeter_config_t *powermeter_config = powermeter_get_config();
-                                            strlcpy( powermeter_config->server, lv_textarea_get_text( powermeter_server_textfield ), sizeof( powermeter_config->server ) );
-                                            strlcpy( powermeter_config->user, lv_textarea_get_text( powermeter_user_textfield ), sizeof( powermeter_config->user ) );
-                                            strlcpy( powermeter_config->password, lv_textarea_get_text( powermeter_password_textfield ), sizeof( powermeter_config->password ) );
-                                            strlcpy( powermeter_config->topic, lv_textarea_get_text( powermeter_topic_textfield ), sizeof( powermeter_config->topic ) );
-                                            powermeter_config->port = atoi(lv_textarea_get_text( powermeter_port_textfield ));
-                                            powermeter_save_config();                                            
-                                            mainbar_jump_to_tilenumber( powermeter_get_app_main_tile_num(), LV_ANIM_ON );
-                                            break;
-    }
+static void powermeter_setup_hibernate_callback ( void ) {
+    keyboard_hide();
+    powermeter_config_t *powermeter_config = powermeter_get_config();
+    strncpy( powermeter_config->server, lv_textarea_get_text( powermeter_server_textfield ), sizeof( powermeter_config->server ) );
+    strncpy( powermeter_config->user, lv_textarea_get_text( powermeter_user_textfield ), sizeof( powermeter_config->user ) );
+    strncpy( powermeter_config->password, lv_textarea_get_text( powermeter_password_textfield ), sizeof( powermeter_config->password ) );
+    strncpy( powermeter_config->topic, lv_textarea_get_text( powermeter_topic_textfield ), sizeof( powermeter_config->topic ) );
+    powermeter_config->port = atoi(lv_textarea_get_text( powermeter_port_textfield ));
+    powermeter_config->save();
 }
 
 static void powermeter_textarea_event_cb( lv_obj_t * obj, lv_event_t event ) {
@@ -240,6 +232,12 @@ static void powermeter_num_textarea_event_cb( lv_obj_t * obj, lv_event_t event )
     }
 }
 
+static void powermeter_setup_page_2_event_cb( lv_obj_t *obj, lv_event_t event ) {
+    if( event == LV_EVENT_CLICKED ) {
+        mainbar_jump_to_tilenumber( powermeter_setup_tile_num + 1, LV_ANIM_OFF );
+    }
+    
+}
 static void powermeter_autoconnect_onoff_event_handler( lv_obj_t * obj, lv_event_t event ) {
     switch ( event ) {
         case (LV_EVENT_VALUE_CHANGED):      powermeter_config_t *powermeter_config = powermeter_get_config();

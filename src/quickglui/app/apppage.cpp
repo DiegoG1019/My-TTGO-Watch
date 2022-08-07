@@ -9,9 +9,9 @@
 #include <config.h>
 #include <gui/mainbar/mainbar.h>
 #include <gui/statusbar.h>
+#include <gui/widget_factory.h>
+#include <gui/widget_styles.h>
 
-LV_IMG_DECLARE(exit_32px);
-LV_IMG_DECLARE(setup_32px);
 LV_IMG_DECLARE(refresh_32px);
 
 AppPage& AppPage::init(lv_obj_t* handle, bool defaultExitBtn)
@@ -20,9 +20,8 @@ AppPage& AppPage::init(lv_obj_t* handle, bool defaultExitBtn)
 
   if (defaultExitBtn)
   {
-    btnExit = Button(this, exit_32px, [](Widget target) {
-        mainbar_jump_to_maintile(LV_ANIM_OFF);
-    });
+    lv_obj_t *btnExitHandle = wf_add_exit_button(handle);
+    btnExit = Button(btnExitHandle);
     btnExit.align(*this, LV_ALIGN_IN_BOTTOM_LEFT, 10, -10);
   }
   
@@ -31,7 +30,8 @@ AppPage& AppPage::init(lv_obj_t* handle, bool defaultExitBtn)
 
 AppPage& AppPage::addSettingsButton(WidgetAction onSettingsBtnClick)
 {
-  btnSettings = Button(this, setup_32px, onSettingsBtnClick);
+  lv_obj_t *btnSettingsHandle = wf_add_setup_button(this->handle(), NULL, NULL);
+  btnSettings = Button(btnSettingsHandle).clicked(onSettingsBtnClick);
   btnSettings.align(*this, LV_ALIGN_IN_BOTTOM_RIGHT, -10, -10);
 
   return *this;
@@ -39,9 +39,25 @@ AppPage& AppPage::addSettingsButton(WidgetAction onSettingsBtnClick)
 
 AppPage& AppPage::addRefreshButton(WidgetAction onRefreshBtnClick)
 {
-  btnRefresh = Button(this, refresh_32px, onRefreshBtnClick);
+    lv_obj_t *btnRefreshHandle = wf_add_refresh_button(this->handle(), NULL, NULL);
+  btnRefresh = Button(btnRefreshHandle).clicked(onRefreshBtnClick);
   btnRefresh.align(*this, LV_ALIGN_IN_TOP_RIGHT, -10, 10);
 
+  return *this;
+}
+
+AppPage& AppPage::addAppButton(const lv_img_dsc_t& image, WidgetAction onBtnClick)
+{
+  log_d("New button");
+  btnApp = Button(this, image, onBtnClick);
+  btnApp.align(*this, LV_ALIGN_IN_BOTTOM_MID, 0, -10);
+
+  return *this;
+}
+
+AppPage& AppPage::moveExitButtonToForeground()
+{
+  lv_obj_move_foreground(btnExit.handle());
   return *this;
 }
 
@@ -57,7 +73,7 @@ Container& AppPage::createChildContainer(lv_layout_t autoLayoutOptios) {
     }
     // Auto-align child widgets on it
     childContainer.autoLayout(autoLayoutOptios);
-    childContainer.style(mainbar_get_style());
+    childContainer.style(ws_get_mainbar_style());
   }
   return childContainer;
 }
@@ -69,5 +85,5 @@ void AppPage::onChildAdded(Widget& child, const TypeInfo& type)
   //if (type.isLabel() || type.isWidget())
   //    target.style(pageStyle);
   //else if (type.isSwitch())
-  //    target.style(mainbar_get_switch_style(), LV_SWITCH_PART_INDIC);
+  //    target.style(ws_get_switch_style(), LV_SWITCH_PART_INDIC);
 }

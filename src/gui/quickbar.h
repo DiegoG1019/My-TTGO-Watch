@@ -24,14 +24,19 @@
 
     #include "config.h"
 
+    /**
+     * @brief quickbar style sets
+     */
     typedef enum {
         QUICKBAR_STYLE_NORMAL,
         QUICKBAR_STYLE_LIGHT,
         QUICKBAR_STYLE_DARK,
+        QUICKBAR_STYLE_GREEN,
+        QUICKBAR_STYLE_RED,
+        QUICKBAR_STYLE_GRAY,
         QUICKBAR_STYLE_TRANS,
         QUICKBAR_STYLE_NUM
     } quickbar_style_t;
-
     /**
      * @brief setup quickbar
      * 

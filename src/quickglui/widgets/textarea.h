@@ -10,6 +10,18 @@
 
 #include "widget.h"
 
+#ifdef NATIVE_64BIT
+    #include <string>
+    using namespace std;
+    #define String string
+#else
+        #include <Arduino.h>
+    #ifdef M5PAPER
+    #elif defined( LILYGO_WATCH_2020_V1 ) || defined( LILYGO_WATCH_2020_V2 ) || defined( LILYGO_WATCH_2020_V3 )
+    #endif
+#endif
+
+
 /*
 * @brief Represent TextArea LVGL widget.
 * Documentation:
@@ -24,6 +36,9 @@ public:
   /** Create a TextArea with text `txt` */
   TextArea(const Widget* parent, const char* txt = NULL);
   
+  /**
+   * @brief set text
+   */
   TextArea& text(const char * txt);
   const char* text();
 
@@ -32,8 +47,8 @@ public:
   TextArea& alignText(lv_label_align_t mode);
   TextArea& digitsMode(bool onlyDigits, const char* filterDigitsList = "+-.,0123456789");
 
-  static const uint16_t IsDigitsOnlyMode = 1;
-  static const uint16_t IsAutoKeyboardDisabled = 2;
+  static const uint16_t IsDigitsOnlyMode = 2;
+  static const uint16_t IsAutoKeyboardDisabled = 4;
 
   constexpr static const char* TypeName = "lv_textarea";
 

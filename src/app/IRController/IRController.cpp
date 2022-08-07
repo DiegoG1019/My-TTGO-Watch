@@ -20,153 +20,225 @@
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 #include "config.h"
-#include <TTGO.h>
-
+#include "IRConfig.h"
 #include "IRController.h"
 #include "quickglui/quickglui.h"
-
 #include "gui/mainbar/mainbar.h"
-#include "hardware/blectl.h"
-#include <IRremoteESP8266.h>
-#include <IRsend.h>
+#include "gui/widget_styles.h"
+#include "hardware/ble/gadgetbridge.h"
 
-#include "IRConfig.h"
 
-// App icon must have an size of 64x64 pixel with an alpha channel
-// Use https://lvgl.io/tools/imageconverter to convert your images and set "true color with alpha"
-LV_IMG_DECLARE(IRController_64px);
-
-IRConfig irConfig;
-Application irController;
-IRsend irsend(13);
-Style irDeskStyle;
-
-/*
- * setup routine for IR Controller app
- */
-void IRController_setup( void ) {
-    irController.init("IR Remote", &IRController_64px);
-    // Load config and build user interface
-    IRController_build_UI(IRControlSettingsAction::Load);
-
-    blectl_register_cb(BLECTL_MSG, IRController_bluetooth_event_cb, "ir-remote setup");
-}
-
-void IRController_build_UI(IRControlSettingsAction settingsAction)
-{
-    if (settingsAction == IRControlSettingsAction::Load)
-        irConfig.load();
-
-    AppPage& main = irController.mainPage();
-    // Create parent widget which will contains all IR control buttons
-    // It also will auto-align child buttons on it:
-    Container& desk = main.createChildContainer(LV_LAYOUT_PRETTY_MID);
-    
-    irDeskStyle = Style::Create(mainbar_get_style(), true);
-    irDeskStyle.paddingInner(irConfig.defSpacing);
-    irDeskStyle.padding(7, 16, 7, 16);
-    desk.style(irDeskStyle);
-
-    for (int i = 0; i < irConfig.totalCount(); i++)
-    {
-        auto btnConfig = irConfig.get(i);
-        if (btnConfig->uiButton.isCreated()) {
-            btnConfig->uiButton.alignInParentTopLeft(0, 0); // Call auto alignment
-            continue;
+#ifdef NATIVE_64BIT
+    void IRController_setup( void ) {
+        return;
+    }
+#else
+    #if defined( M5PAPER ) ||  defined( M5CORE2 ) || defined( LILYGO_WATCH_2021 ) || defined( WT32_SC01 )
+        void IRController_setup( void ) {
+            return;
         }
-        
-        // Add new button
-        Button btn(&desk, btnConfig->name.c_str(), [btnConfig](Widget& btn) {
-            execute_ir_cmd(btnConfig);
-        });
-        btn.size(irConfig.defBtnWidth, irConfig.defBtnHeight);
-        btnConfig->uiButton = btn;
-    }
+    #elif defined( LILYGO_WATCH_2020_V1 ) || defined( LILYGO_WATCH_2020_V2 ) || defined( LILYGO_WATCH_2020_V3 )
+        #include <TTGO.h>
+        #include <IRremoteESP8266.h>
+        #include <IRsend.h>
+        // App icon must have an size of 64x64 pixel with an alpha channel
+        // Use https://lvgl.io/tools/imageconverter to convert your images and set "true color with alpha"
+        LV_IMG_DECLARE(IRController_64px);
 
-    // Refresh screen
-    lv_obj_invalidate(lv_scr_act());
+        static lv_point_t* valid_pos;
+        static bool IRController_bluetooth_event_cb(EventBits_t event, void *arg);
 
-    if (settingsAction == IRControlSettingsAction::Save)
-        irConfig.save();
-}
+        IRConfig irConfig;
+        Application irController;
+        IRsend irsend(TWATCH_2020_IR_PIN);
+        lv_style_t irDeskStyle;
 
-void execute_ir_cmd(InfraButton* config) {
-    pinMode(13, OUTPUT);
-    digitalWrite(13, LOW); // No Current Limiting so keep it off (!!!)
+        /*
+        * setup routine for IR Controller app
+        */
+        void IRController_setup( void ) {
+            irController.init("IR Remote", &IRController_64px);
+            // Load config and build user interface
+            IRController_build_UI(IRControlSettingsAction::Load);
 
-    switch (config->mode)
-    {
-    case RC5:
-        irsend.sendRC5(config->code);
-        break;
-    case RC6:
-        irsend.sendRC6(config->code);
-        break;
-    case NEC:
-        irsend.sendNEC(config->code);
-        break;
-    case SONY:
-        if (config->bits > 0)
-            irsend.sendSony(config->code, config->bits);
-        else
-            irsend.sendSony(config->code);
-        break;
-    case SAMSUNG:
-        irsend.sendSAMSUNG(config->code);
-        break;
-    case RAW:
-        if (config->raw != nullptr && config->rawLength > 0)
-            irsend.sendRaw(config->raw, config->rawLength, 38);
-        break;
-    
-    default:
-        log_e("IR Protocol %d not supported, please add it first!", (int)config->mode);
-        break;
-    }
+            gadgetbridge_register_cb( GADGETBRIDGE_JSON_MSG, IRController_bluetooth_event_cb, "ir-remote setup");
+        }
 
-    delay(50);
-    digitalWrite(13, LOW); // No Current Limiting so keep it off (!!!)
-    log_i("IR button clicked: %s", config->name);
-}
+        void IRController_build_UI(IRControlSettingsAction settingsAction)
+        {
+            if (settingsAction == IRControlSettingsAction::Load)
+                irConfig.load();
 
-bool IRController_bluetooth_event_cb(EventBits_t event, void *arg) {
-    if (event != BLECTL_MSG) return false; // Not supported
+            AppPage& main = irController.mainPage();
+            lv_obj_t *desks = lv_tileview_create(main.handle(), NULL);
+            lv_obj_set_size(desks, LV_HOR_RES, LV_VER_RES);
+            lv_page_set_scrollbar_mode(desks, LV_SCROLLBAR_MODE_OFF);
+            lv_obj_add_style(desks, LV_OBJ_PART_MAIN, ws_get_mainbar_style());
 
-    auto msg = (const char*)arg;
-    InfraButton* btn = nullptr;
-    BluetoothJsonRequest request(msg, strlen( msg ) * 4);
+            valid_pos = ( lv_point_t * )MALLOC_ASSERT( sizeof( lv_point_t ) * irConfig.pageCount, "valid_pos allocation failed" );
+            for (lv_coord_t i = 0; i < irConfig.pageCount; i++)
+            {
+                valid_pos[i].x = i;
+                valid_pos[i].y = 0;
+            }
+            
+            for (size_t i = 0; i < irConfig.pageCount; i++)
+            {
+                lv_obj_t * tile = lv_obj_create(desks, NULL);
+                lv_obj_set_size(tile, LV_HOR_RES, LV_VER_RES);
+                lv_obj_set_pos(tile, valid_pos[i].x * LV_HOR_RES, valid_pos[i].y * LV_VER_RES);
+                lv_obj_add_style(tile, LV_OBJ_PART_MAIN, ws_get_mainbar_style());
 
-    if (request.isRequest() && request.isForApplication("ir"))
-    {
-        BluetoothJsonResponse response(request);
-        String cmd = request.command(); // Requested command
-        log_i("RECEIVED cmd: %s, msg: %s", cmd.c_str(), msg);
-        if (cmd == "list") {
-            irConfig.sendListNames(response);
-        } else if (cmd == "edit" || cmd == "save") {
-            String name = request["v"];
-            if (cmd == "save") {
-                // Update button data:
-                btn = irConfig.get(name.c_str());
-                if (btn != nullptr) {
-                    JsonObject obj = request.as<JsonObject>();
-                    btn->loadFrom(obj);
-                    irConfig.save();
+                lv_obj_t * desk = lv_cont_create(tile, NULL);
+                lv_obj_set_size(desk, LV_HOR_RES, LV_VER_RES - 42);
+                lv_cont_set_layout(desk, LV_LAYOUT_PRETTY_MID);
+
+                lv_style_copy(&irDeskStyle, ws_get_mainbar_style());
+                lv_style_set_pad_inner(&irDeskStyle, LV_STATE_DEFAULT, irConfig.defSpacing);
+                lv_style_set_pad_top(&irDeskStyle, LV_STATE_DEFAULT, 7);
+                lv_style_set_pad_bottom(&irDeskStyle, LV_STATE_DEFAULT, 7);
+                lv_style_set_pad_left(&irDeskStyle, LV_STATE_DEFAULT, 16);
+                lv_style_set_pad_right(&irDeskStyle, LV_STATE_DEFAULT, 16);
+                lv_obj_add_style(desk, LV_OBJ_PART_MAIN, &irDeskStyle);
+
+                for (int j = 0; j < irConfig.totalCount(); j++)
+                {
+                    auto btnConfig = irConfig.get(j);
+                    if (btnConfig == nullptr) continue;
+                    if (btnConfig->page != i) continue;
+
+                    if (btnConfig->uiButton.isCreated()) {
+                        btnConfig->uiButton.alignInParentTopLeft(0, 0); // Call auto alignment
+                        continue;
+                    }
+                    
+                    lv_obj_t * button = lv_btn_create(desk, NULL);
+                    lv_label_create(button, NULL);
+
+                    Button btn(button);
+                    btn.size(irConfig.defBtnWidth, irConfig.defBtnHeight);
+                    btn.text(btnConfig->name);
+                    btn.clicked([btnConfig](Widget& btn) {
+                        execute_ir_cmd(btnConfig);
+                    });
+                    btnConfig->uiButton = btn;
+                }
+
+                lv_tileview_add_element(desks, tile);
+            }
+            
+            lv_tileview_set_valid_positions(desks, valid_pos, irConfig.pageCount);
+            lv_tileview_set_edge_flash(desks, true);
+            main.moveExitButtonToForeground();
+
+            // Refresh screen
+            lv_obj_invalidate(lv_scr_act());
+
+            if (settingsAction == IRControlSettingsAction::Save)
+                irConfig.save();
+        }
+
+        void execute_ir_cmd(InfraButton* config) {
+            pinMode(TWATCH_2020_IR_PIN, OUTPUT);
+            digitalWrite(TWATCH_2020_IR_PIN, LOW); // No Current Limiting so keep it off (!!!)
+
+            for (size_t i = 0; i < config->commandCount; i++) {
+                auto command = config->commands[i];
+                if (i > 0) delay(100);
+                
+                switch (command->mode)
+                {
+                    case RC5:
+                        irsend.sendRC5(command->code);
+                        break;
+                    case RC6:
+                        irsend.sendRC6(command->code);
+                        break;
+                    case NEC:
+                        irsend.sendNEC(command->code);
+                        break;
+                    case SONY:
+                        if (command->bits > 0)
+                            irsend.sendSony(command->code, command->bits);
+                        else
+                            irsend.sendSony(command->code);
+                        break;
+                    case PANASONIC:
+                        irsend.sendPanasonic64(command->code);
+                        break;
+                    case JVC:
+                        irsend.sendJVC(command->code);
+                        break;
+                    case SAMSUNG:
+                        irsend.sendSAMSUNG(command->code);
+                        break;
+                    case SAMSUNG36:
+                        irsend.sendSamsung36(command->code);
+                        break;
+                    case LG:
+                        irsend.sendLG(command->code);
+                        break;
+                    case SHARP:
+                        irsend.sendSharpRaw(command->code);
+                        break;
+                    case RAW:
+                        if (command->raw != nullptr && command->rawLength > 0)
+                            irsend.sendRaw(command->raw, command->rawLength, 38);
+                        break;
+                    default:
+                        log_e("IR Protocol %d not supported, please add it first!", (int)command->mode);
+                        break;
                 }
             }
-            irConfig.sendButtonEdit(response, name.c_str());
-        } else if (cmd == "add") {
-            String name = request["v"];
-            btn = irConfig.add(name.c_str());
-            irConfig.sendListNames(response);
-            IRController_build_UI(IRControlSettingsAction::Save);
-        } else if (cmd == "del") {
-            String name = request["v"];
-            irConfig.del(name.c_str());
-            irConfig.sendListNames(response);
-            IRController_build_UI(IRControlSettingsAction::Save);
-        }
-    }
 
-    return true;
-}
+            delay(50);
+            digitalWrite(TWATCH_2020_IR_PIN, LOW); // No Current Limiting so keep it off (!!!)
+            log_i("IR button with %d commands clicked: %s", config->commandCount, config->name);
+        }
+
+        bool IRController_bluetooth_event_cb(EventBits_t event, void *arg) {
+            if (event != GADGETBRIDGE_JSON_MSG) return false; // Not supported
+
+            BluetoothJsonRequest &request = *(BluetoothJsonRequest *)arg;
+
+            if (request.isRequest() && request.isForApplication("ir"))
+            {
+                BluetoothJsonResponse response(request);
+                String cmd = request.command(); // Requested command
+                log_i("RECEIVED cmd: %s", cmd.c_str());
+                if (cmd == "list") {
+                    irConfig.sendListNames(response);
+                } else if (cmd == "edit" || cmd == "save") {
+                    String name = request["v"];
+                    if (cmd == "save") {
+                        // Update button data:
+                        auto btn = irConfig.get(0, name.c_str());
+                        if (btn != nullptr){
+                            JsonObject obj = request.as<JsonObject>();
+                            btn->loadFrom(obj);
+                        }
+                        irConfig.save();
+                    }
+                    irConfig.sendButtonEdit(response, 0, name.c_str());
+                } else if (cmd == "add") {
+                    String name = request["v"];
+                    irConfig.add(0, name.c_str());
+                    irConfig.sendListNames(response);
+                    IRController_build_UI(IRControlSettingsAction::Save);
+                } else if (cmd == "del") {
+                    String name = request["v"];
+                    irConfig.del(0, name.c_str());
+                    irConfig.sendListNames(response);
+                    IRController_build_UI(IRControlSettingsAction::Save);
+                }
+            }
+
+            return true;
+        }
+    #else // NEW_HARDWARE_TAG
+        void IRController_setup( void ) {
+            return;
+        }
+    #endif
+#endif
+

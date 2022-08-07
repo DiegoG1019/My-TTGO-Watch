@@ -8,8 +8,19 @@
 #ifndef WIDGET_H_
 #define WIDGET_H_
 
-#include "lvgl/lvgl.h"
+#include "lvgl.h"
 #include "../common/events.h"
+
+#ifdef NATIVE_64BIT
+    #include <string>
+    using namespace std;
+    #define String string
+#else
+        #include <Arduino.h>
+    #ifdef M5PAPER
+    #elif defined( LILYGO_WATCH_2020_V1 ) || defined( LILYGO_WATCH_2020_V2 ) || defined( LILYGO_WATCH_2020_V3 )
+    #endif
+#endif
 
 class Style;
 
@@ -36,9 +47,12 @@ public:
   Widget& height(uint16_t height);
   Widget& position(uint16_t width, uint16_t height);
   Widget& align(const Widget& base, lv_align_t align_mode, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
+  Widget& alignOrig0(const Widget& base, lv_align_t align_mode, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   //Widget& align(Widget* base, lv_align_t align_mode, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignx(const Widget& base, lv_align_t align_mode, lv_coord_t x_offset = 0);
   Widget& aligny(const Widget& base, lv_align_t align_mode, lv_coord_t y_offset = 0);
+  
+  Widget& realign();
   
   Widget& style(const Style& addStyle, bool resetStyleList);
   Widget& style(const Style& addStyle, uint8_t part = LV_OBJ_PART_MAIN, bool resetStyleList=false);
@@ -54,6 +68,8 @@ public:
   Widget& alignInParentTopLeft(lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignInParentRightMid(lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignInParentTopRight(lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
+  Widget& alignInParentBottomRight(lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
+  Widget& alignInParentBottomLeft(lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignOutsideRightMid(const Widget& base, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignOutsideBottomMid(const Widget& base, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);
   Widget& alignOutsideBottomLeft(const Widget& base, lv_coord_t x_offset = 0, lv_coord_t y_offset = 0);

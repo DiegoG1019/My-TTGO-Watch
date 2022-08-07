@@ -30,7 +30,7 @@ Application& Application::useConfig(JsonConfig& externalConfig, bool autoBuildSe
 
   if (autoBuildSettingsPage)
   {
-    log_i("AutoBuilding settings page for %s. Options count: %d", name.c_str(), configuration->totalCount());
+    log_d("AutoBuilding settings page for %s. Options count: %d", name.c_str(), configuration->totalCount());
     settingsPage().buildFromConfig(externalConfig);
   }
   return *this;
@@ -64,40 +64,43 @@ void Application::onBuildMainPage(lv_obj_t* tile) {
 }
 
 void Application::onBuildSettingsPage(lv_obj_t* tile) {
-  auto title = name + " settings";
-  settings.init(tile, title.c_str(), [this](Widget btn) { onButtonCloseSettingsClicked(); });
+    log_d("build Settings page");
+    auto title = name + " settings";
+    settings.init(tile, title.c_str(), [this](Widget btn) { onButtonCloseSettingsClicked(); });
 }
 
 void Application::onButtonOpenSettingsClicked() {
-  if (configuration != nullptr)
-    configuration->load();
-  statusbar_hide(true);
-  navigateToSettings(true);
+    log_d("enter settings");
+    if (configuration != nullptr)
+        configuration->load();
+    statusbar_hide(true);
+    navigateToSettings(true);
 }
+
 void Application::onButtonCloseSettingsClicked() {
-  if (configuration != nullptr)
-  {
-    configuration->applyFromUI();
-    configuration->save();
-  }
-  navigateToMain(true);
+    log_d("leave settings");
+    if (configuration != nullptr) {
+        configuration->applyFromUI();
+        configuration->save();
+    }
+    mainbar_jump_back();
 }
 
 void Application::onAppIconClicked() {
-  statusbar_hide(true);
   icon().hideIndicator();
   navigateToMain(false);
+  statusbar_hide(true);
 }
 
 void Application::onDesktopWidgetClicked() {
-  statusbar_hide(true);
   icon().hideIndicator();
   navigateToMain(false);
+  statusbar_hide(true);
 }
 
 Application& Application::navigateToMain(bool animate, int id) {
-  mainbar_jump_to_tilenumber(initialTileId + id, (animate ? LV_ANIM_ON : LV_ANIM_OFF) );
-  return *this;
+    mainbar_jump_to_tilenumber(initialTileId + id, (animate ? LV_ANIM_ON : LV_ANIM_OFF) );
+    return *this;
 }
 
 Application& Application::navigateToSettings(bool animate, int id) {

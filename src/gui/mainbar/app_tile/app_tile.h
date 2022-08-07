@@ -22,23 +22,60 @@
 #ifndef _APP_TILE_H
     #define _APP_TILE_H
 
-    #include <TTGO.h>
     #include "gui/icon.h"
+    #include "lvgl.h"
 
-    #define MAX_APPS_ICON_HORZ      3
-    #define MAX_APPS_ICON_VERT      2
-    #define MAX_APPS_TILES          3
+    #if defined( M5PAPER )
+        #define MAX_APPS_ICON_HORZ      4
+        #define MAX_APPS_ICON_VERT      5
+        #define APP_ICON_X_CLEARENCE    48
+        #define APP_ICON_Y_CLEARENCE    72
+        #define APP_ICON_X_OFFSET       0
+        #define APP_ICON_Y_OFFSET       0
+        #define MAX_APPS_TILES          1
+    #elif defined( LILYGO_WATCH_2020_V1 ) || defined( LILYGO_WATCH_2020_V2 ) || defined( LILYGO_WATCH_2020_V3 ) || defined( M5CORE2 )
+        #define MAX_APPS_ICON_HORZ      3
+        #define MAX_APPS_ICON_VERT      2
+        #define APP_ICON_X_CLEARENCE    8
+        #define APP_ICON_Y_CLEARENCE    36
+        #define APP_ICON_X_OFFSET       0
+        #define APP_ICON_Y_OFFSET       0
+        #define MAX_APPS_TILES          4
+    #elif defined( LILYGO_WATCH_2021 )
+        #define MAX_APPS_ICON_HORZ      2
+        #define MAX_APPS_ICON_VERT      2
+        #define APP_ICON_X_CLEARENCE    4
+        #define APP_ICON_Y_CLEARENCE    36
+        #define APP_ICON_X_OFFSET       0
+        #define APP_ICON_Y_OFFSET       -16
+        #define MAX_APPS_TILES          7
+    #elif defined( WT32_SC01 )
+        #define MAX_APPS_ICON_HORZ      5
+        #define MAX_APPS_ICON_VERT      2
+        #define APP_ICON_X_CLEARENCE    16
+        #define APP_ICON_Y_CLEARENCE    36
+        #define APP_ICON_X_OFFSET       0
+        #define APP_ICON_Y_OFFSET       0
+        #define MAX_APPS_TILES          3
+    #else
+        #define MAX_APPS_ICON_HORZ      3
+        #define MAX_APPS_ICON_VERT      2
+        #define APP_ICON_X_CLEARENCE    8
+        #define APP_ICON_Y_CLEARENCE    36
+        #define APP_ICON_X_OFFSET       0
+        #define APP_ICON_Y_OFFSET       0
+        #define MAX_APPS_TILES          4
+    #endif
+
     #define MAX_APPS_ICON           ( MAX_APPS_ICON_HORZ * MAX_APPS_ICON_VERT * MAX_APPS_TILES )
 
-    #define APP_ICON_X_SIZE         64
-    #define APP_ICON_Y_SIZE         64
-    #define APP_ICON_X_CLEARENCE    8
-    #define APP_ICON_Y_CLEARENCE    36
+    #define APP_ICON_X_SIZE         70
+    #define APP_ICON_Y_SIZE         70
     #define APP_LABEL_X_SIZE        APP_ICON_X_SIZE + APP_ICON_X_CLEARENCE
     #define APP_LABEL_Y_SIZE        APP_ICON_Y_CLEARENCE / 2
 
-    #define APP_FIRST_X_POS         ( 240 - ( APP_ICON_X_SIZE * MAX_APPS_ICON_HORZ + APP_ICON_X_CLEARENCE * ( MAX_APPS_ICON_HORZ - 1 ) ) ) / 2
-    #define APP_FIRST_Y_POS         ( 240 - ( APP_ICON_Y_SIZE * MAX_APPS_ICON_VERT + APP_ICON_Y_CLEARENCE * ( MAX_APPS_ICON_VERT - 1 ) ) ) / 2
+    #define APP_FIRST_X_POS         ( lv_disp_get_hor_res( NULL ) - ( APP_ICON_X_SIZE * MAX_APPS_ICON_HORZ + APP_ICON_X_CLEARENCE * ( MAX_APPS_ICON_HORZ - 1 ) ) ) / 2
+    #define APP_FIRST_Y_POS         ( lv_disp_get_ver_res( NULL ) - ( APP_ICON_Y_SIZE * MAX_APPS_ICON_VERT + APP_ICON_Y_CLEARENCE * ( MAX_APPS_ICON_VERT - 1 ) ) ) / 2
 
     /**
      * @brief setup the app tile
